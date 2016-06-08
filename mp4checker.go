@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/binary"
 	"flag"
-	"fmt"
-	"io"
+	"github.com/rarewin/mp4checker/atom"
 	"os"
 )
 
@@ -16,31 +14,6 @@ var options Options
 
 func init() {
 	options.help = flag.Bool("h", false, "Print this help")
-}
-
-type Atom struct {
-	size  uint32
-	atype string
-}
-
-func print_atom(a Atom) {
-
-	fmt.Printf("size: %d\n", a.size)
-	fmt.Printf("type: %s\n", a.atype)
-}
-
-func parse_atom(r io.Reader) {
-
-	var atom Atom
-
-	buf := make([]byte, 4)
-
-	binary.Read(r, binary.BigEndian, &atom.size)
-
-	r.Read(buf)
-	atom.atype = string(buf)
-
-	print_atom(atom)
 }
 
 func main() {
@@ -68,6 +41,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	parse_atom(file_i)
+	atom.Parse_atom(file_i)
 
 }
