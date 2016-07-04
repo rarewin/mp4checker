@@ -16,16 +16,12 @@ type AtomType interface {
 type Atom struct {
 	size     uint32
 	atype    string
-	children []AtomType
+	children []*AtomType
 	Print    func()
 	Type     func()
 }
 
-var atom_parsers = map[string]func(Atom, io.Reader) *AtomType{
-	"ftyp": parse_ftyp,
-	"moov": parse_moov,
-	"free": parse_free,
-}
+var atom_parsers map[string]func(Atom, io.Reader) *AtomType
 
 // ftyp
 type ftypAtom struct {
@@ -107,10 +103,7 @@ func parse_moov(a Atom, r io.Reader) *AtomType {
 	moov.size = a.size
 	moov.atype = a.atype
 
-	// TODO: implementation
-	buf := make([]byte, a.size-8)
-	r.Read(buf)
-	//
+	moov.children = Parse_atom(r)
 
 	var ret AtomType = &moov
 
@@ -141,12 +134,40 @@ type mvhdAtom struct {
 	next_track_id      uint32
 }
 
+func (ma *mvhdAtom) Print() {
+	fmt.Printf("size: %d\n", ma.size)
+	fmt.Printf("type: %s\n", ma.atype)
+	fmt.Printf("version: %d\n", ma.version)
+	fmt.Printf("flags: %x\n", ma.flags)
+}
+
 func (ma *mvhdAtom) Size() uint32 {
 	return ma.size
 }
 
 func (ma *mvhdAtom) Type() string {
 	return ma.atype
+}
+
+func parse_mvhd(a Atom, r io.Reader) *AtomType {
+	var mvhd mvhdAtom
+
+	mvhd.size = a.size
+	mvhd.atype = a.atype
+
+	var tmp uint32
+	binary.Read(r, binary.LittleEndian, &tmp)
+	mvhd.version = (tmp >> 24) & 0xff
+	mvhd.flags = tmp & 0xffffff
+
+	fmt.Printf("(%s) %d bytes were ignored\n", a.atype, a.size-12)
+
+	buf := make([]byte, a.size-12)
+	r.Read(buf)
+
+	var ret AtomType = &mvhd
+
+	return &ret
 }
 
 // free
@@ -234,6 +255,7 @@ func Parse_atom(r io.Reader) []*AtomType {
 			mp4.Print()
 
 			atoms = append(atoms, &mp4)
+
 		} else {
 
 			mp4 := *parse_general(atom, r)
@@ -244,4 +266,14 @@ func Parse_atom(r io.Reader) []*AtomType {
 	}
 
 	return atoms
+}
+
+func init() {
+
+	atom_parsers = map[string]func(Atom, io.Reader) *AtomType{
+		"ftyp": parse_ftyp,
+		"moov": parse_moov,
+		"mvhd": parse_mvhd,
+		"free": parse_free,
+	}
 }
