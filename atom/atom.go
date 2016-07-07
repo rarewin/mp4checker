@@ -4,17 +4,18 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	//	"time"
+	"time"
 )
 
 type Atom struct {
 	size     uint32
 	atype    string
-	children []*Atom
+	children []Atom
 	elements map[string]interface{}
 }
 
 var atom_parsers map[string]func(*Atom, io.Reader) *Atom
+var diff_time time.Duration
 
 // ftyp
 func parse_ftyp(a *Atom, r io.Reader) *Atom {
@@ -54,15 +55,40 @@ func parse_moov(a *Atom, r io.Reader) *Atom {
 func parse_mvhd(a *Atom, r io.Reader) *Atom {
 
 	el := make(map[string]interface{})
-	var tmp uint32
+	var tmp32 uint32
+	var tmp16 uint16
 
-	binary.Read(r, binary.LittleEndian, &tmp)
-	el["version"] = (tmp >> 24) & 0xff
-	el["flags"] = tmp & 0xffffff
+	binary.Read(r, binary.LittleEndian, &tmp32)
+	el["version"] = (tmp32 >> 24) & 0xff
+	el["flags"] = tmp32 & 0xffffff
 
 	fmt.Printf("(%s) %d bytes were ignored\n", a.atype, a.size-12)
 
-	buf := make([]byte, a.size-12)
+	binary.Read(r, binary.LittleEndian, &tmp32)
+	el["creation_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
+
+	binary.Read(r, binary.LittleEndian, &tmp32)
+	el["modification_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
+
+	binary.Read(r, binary.LittleEndian, &tmp32)
+	el["time_scale"] = tmp32
+
+	binary.Read(r, binary.LittleEndian, &tmp32)
+	el["duration"] = tmp32
+
+	binary.Read(r, binary.LittleEndian, &tmp32)
+	el["preferred_rate"] = tmp32
+
+	binary.Read(r, binary.LittleEndian, &tmp16)
+	el["preferred_volume"] = tmp16
+
+	// reserved
+	buf := make([]byte, 10)
+	r.Read(buf)
+
+	// matrix structure
+
+	buf = make([]byte, a.size-44)
 	r.Read(buf)
 
 	a.elements = el
@@ -104,29 +130,29 @@ func Print_atom(a *Atom) {
 	fmt.Printf("\n")
 }
 
-func Parse_atom(r io.Reader) []*Atom {
+func Parse_atom(r io.Reader) []Atom {
 
-	var atom Atom
-
-	var atoms = make([]*Atom, 0)
+	var atoms = make([]Atom, 0)
+	var size uint32
 
 	buf := make([]byte, 4)
 
-	for binary.Read(r, binary.BigEndian, &atom.size) == nil {
+	for binary.Read(r, binary.BigEndian, &size) == nil {
 
-		var mp4 *Atom
+		atom := new(Atom)
+		atom.size = size
 
 		r.Read(buf)
 		atom.atype = string(buf)
 
 		if atom_parsers[atom.atype] != nil {
-			mp4 = atom_parsers[atom.atype](&atom, r)
+			atom_parsers[atom.atype](atom, r)
 		} else {
-			mp4 = parse_general(&atom, r)
+			parse_general(atom, r)
 		}
 
-		Print_atom(mp4)
-		atoms = append(atoms, mp4)
+		Print_atom(atom)
+		atoms = append(atoms, *atom)
 	}
 
 	return atoms
@@ -140,4 +166,6 @@ func init() {
 		"mvhd": parse_mvhd,
 		"free": parse_free,
 	}
+
+	diff_time = time.Date(1904, 1, 1, 0, 0, 0, 0, time.UTC).Sub(time.Unix(0, 0))
 }
