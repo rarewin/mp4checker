@@ -14,6 +14,22 @@ type Atom struct {
 	elements map[string]interface{}
 }
 
+func (self Atom) Print() {
+
+	fmt.Printf("type: %s\n", self.atype)
+	fmt.Printf("size: %d\n", self.size)
+
+	for k, v := range self.elements {
+		fmt.Printf("%s: %v\n", k, v)
+	}
+
+	fmt.Printf("\n")
+
+	for i := 0; i < len(self.children); i++ {
+		self.children[i].Print()
+	}
+}
+
 var atom_parsers map[string]func(*Atom, io.Reader) *Atom
 var diff_time time.Duration
 
@@ -140,6 +156,14 @@ func parse_free(a *Atom, r io.Reader) *Atom {
 	return a
 }
 
+// trak atom
+func parse_trak(a *Atom, r io.Reader) *Atom {
+
+	a.children = Parse_atom(r)
+
+	return a	
+}
+
 // general
 func parse_general(a *Atom, r io.Reader) *Atom {
 
@@ -185,7 +209,6 @@ func Parse_atom(r io.Reader) []Atom {
 			parse_general(atom, r)
 		}
 
-		Print_atom(atom)
 		atoms = append(atoms, *atom)
 	}
 
@@ -198,6 +221,7 @@ func init() {
 		"ftyp": parse_ftyp,
 		"moov": parse_moov,
 		"mvhd": parse_mvhd,
+		"trak": parse_trak,
 		"free": parse_free,
 	}
 
