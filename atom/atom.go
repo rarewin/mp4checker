@@ -58,28 +58,26 @@ func parse_mvhd(a *Atom, r io.Reader) *Atom {
 	var tmp32 uint32
 	var tmp16 uint16
 
-	binary.Read(r, binary.LittleEndian, &tmp32)
+	binary.Read(r, binary.BigEndian, &tmp32)
 	el["version"] = (tmp32 >> 24) & 0xff
 	el["flags"] = tmp32 & 0xffffff
 
-	fmt.Printf("(%s) %d bytes were ignored\n", a.atype, a.size-12)
-
-	binary.Read(r, binary.LittleEndian, &tmp32)
+	binary.Read(r, binary.BigEndian, &tmp32)
 	el["creation_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
 
-	binary.Read(r, binary.LittleEndian, &tmp32)
+	binary.Read(r, binary.BigEndian, &tmp32)
 	el["modification_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
 
-	binary.Read(r, binary.LittleEndian, &tmp32)
+	binary.Read(r, binary.BigEndian, &tmp32)
 	el["time_scale"] = tmp32
 
-	binary.Read(r, binary.LittleEndian, &tmp32)
+	binary.Read(r, binary.BigEndian, &tmp32)
 	el["duration"] = tmp32
 
-	binary.Read(r, binary.LittleEndian, &tmp32)
+	binary.Read(r, binary.BigEndian, &tmp32)
 	el["preferred_rate"] = tmp32
 
-	binary.Read(r, binary.LittleEndian, &tmp16)
+	binary.Read(r, binary.BigEndian, &tmp16)
 	el["preferred_volume"] = tmp16
 
 	// reserved
@@ -87,9 +85,45 @@ func parse_mvhd(a *Atom, r io.Reader) *Atom {
 	r.Read(buf)
 
 	// matrix structure
+	var matrix [3][3]uint32
+	binary.Read(r, binary.BigEndian, &matrix[0][0])
+	binary.Read(r, binary.BigEndian, &matrix[0][1])
+	binary.Read(r, binary.BigEndian, &matrix[0][2])
+	binary.Read(r, binary.BigEndian, &matrix[1][0])
+	binary.Read(r, binary.BigEndian, &matrix[1][1])
+	binary.Read(r, binary.BigEndian, &matrix[1][2])
+	binary.Read(r, binary.BigEndian, &matrix[2][0])
+	binary.Read(r, binary.BigEndian, &matrix[2][1])
+	binary.Read(r, binary.BigEndian, &matrix[2][2])
+	el["matrix_structure"] = matrix
 
-	buf = make([]byte, a.size-44)
-	r.Read(buf)
+	// preview time
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["preview_time"] = tmp32
+
+	// preview duration
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["preview_duration"] = tmp32
+
+	// poster_time
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["poster_time"] = tmp32
+
+	// selection time
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["selection_time"] = tmp32
+
+	// selection duration
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["selection_duration"] = tmp32
+
+	// current time
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["current_time"] = tmp32
+
+	// next track ID
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["next_track_ID"] = tmp32
 
 	a.elements = el
 
