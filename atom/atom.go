@@ -161,7 +161,81 @@ func parse_trak(a *Atom, r io.Reader) *Atom {
 
 	a.children = Parse_atom(r)
 
-	return a	
+	return a
+}
+
+// tkhd atom
+func parse_tkhd(a *Atom, r io.Reader) *Atom {
+
+	el := make(map[string]interface{})
+	var tmp32 uint32
+	var tmp16 uint16
+	// var tmp8 uint8
+
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["version"] = (tmp32 >> 24) & 0xff
+	el["flags"] = tmp32 & 0xffffff
+
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["creation_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
+
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["modification_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
+
+	// track ID
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["track_ID"] = tmp32
+
+	// Reserved
+	binary.Read(r, binary.BigEndian, &tmp32)
+
+	// Duration
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["duration"] = tmp32
+
+	// reserved
+	buf := make([]byte, 8)
+	r.Read(buf)
+
+	// Layer
+	binary.Read(r, binary.BigEndian, &tmp16)
+	el["layer"] = tmp16
+
+	// Alternate group
+	binary.Read(r, binary.BigEndian, &tmp16)
+	el["alternate_group"] = tmp16
+
+	// Volume
+	binary.Read(r, binary.BigEndian, &tmp16)
+	el["volume"] = tmp16
+
+	// Reserved
+	binary.Read(r, binary.BigEndian, &tmp16)
+
+	// matrix structure
+	var matrix [3][3]uint32
+	binary.Read(r, binary.BigEndian, &matrix[0][0])
+	binary.Read(r, binary.BigEndian, &matrix[0][1])
+	binary.Read(r, binary.BigEndian, &matrix[0][2])
+	binary.Read(r, binary.BigEndian, &matrix[1][0])
+	binary.Read(r, binary.BigEndian, &matrix[1][1])
+	binary.Read(r, binary.BigEndian, &matrix[1][2])
+	binary.Read(r, binary.BigEndian, &matrix[2][0])
+	binary.Read(r, binary.BigEndian, &matrix[2][1])
+	binary.Read(r, binary.BigEndian, &matrix[2][2])
+	el["matrix_structure"] = matrix
+
+	// Track width
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["track_width"] = tmp32
+
+	// Track height
+	binary.Read(r, binary.BigEndian, &tmp32)
+	el["track_height"] = tmp32
+
+	a.elements = el
+
+	return a
 }
 
 // general
@@ -223,6 +297,7 @@ func init() {
 		"mvhd": parse_mvhd,
 		"trak": parse_trak,
 		"free": parse_free,
+		"tkhd": parse_tkhd,
 	}
 
 	diff_time = time.Date(1904, 1, 1, 0, 0, 0, 0, time.UTC).Sub(time.Unix(0, 0))
