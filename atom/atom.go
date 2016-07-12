@@ -20,7 +20,23 @@ func (self Atom) Print() {
 	fmt.Printf("size: %d\n", self.size)
 
 	for k, v := range self.elements {
-		fmt.Printf("%s: %v\n", k, v)
+
+		fmt.Printf("%s: ", k)
+
+		switch k {
+
+		case "flags":
+			fmt.Printf("0x%x\n", v)
+
+		case "track_width", "track_height":
+			fmt.Printf("%d.%04d\n", (v.(uint32) >> 16), (v.(uint32) & 0xffff))
+
+		case "matrix_structure":
+			fmt.Println(v.([3][3]uint32))
+
+		default:
+			fmt.Printf("%v\n", v)
+		}
 	}
 
 	fmt.Printf("\n")
@@ -32,6 +48,26 @@ func (self Atom) Print() {
 
 var atom_parsers map[string]func(*Atom, io.Reader) *Atom
 var diff_time time.Duration
+
+// read 32-bit value
+func read32(r io.Reader) uint32 {
+
+	var tmp32 uint32
+
+	binary.Read(r, binary.BigEndian, &tmp32)
+
+	return tmp32
+}
+
+// read 16-bit value
+func read16(r io.Reader) uint16 {
+
+	var tmp16 uint16
+
+	binary.Read(r, binary.BigEndian, &tmp16)
+
+	return tmp16
+}
 
 // ftyp
 func parse_ftyp(a *Atom, r io.Reader) *Atom {
@@ -72,29 +108,17 @@ func parse_mvhd(a *Atom, r io.Reader) *Atom {
 
 	el := make(map[string]interface{})
 	var tmp32 uint32
-	var tmp16 uint16
 
-	binary.Read(r, binary.BigEndian, &tmp32)
+	tmp32 = read32(r)
 	el["version"] = (tmp32 >> 24) & 0xff
 	el["flags"] = tmp32 & 0xffffff
 
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["creation_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
-
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["modification_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
-
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["time_scale"] = tmp32
-
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["duration"] = tmp32
-
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["preferred_rate"] = tmp32
-
-	binary.Read(r, binary.BigEndian, &tmp16)
-	el["preferred_volume"] = tmp16
+	el["creation_time"] = time.Unix(int64(read32(r)), 0).Add(diff_time)
+	el["modification_time"] = time.Unix(int64(read32(r)), 0).Add(diff_time)
+	el["time_scale"] = read32(r)
+	el["duration"] = read32(r)
+	el["preferred_rate"] = read32(r)
+	el["preferred_volume"] = read16(r)
 
 	// reserved
 	buf := make([]byte, 10)
@@ -113,33 +137,13 @@ func parse_mvhd(a *Atom, r io.Reader) *Atom {
 	binary.Read(r, binary.BigEndian, &matrix[2][2])
 	el["matrix_structure"] = matrix
 
-	// preview time
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["preview_time"] = tmp32
-
-	// preview duration
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["preview_duration"] = tmp32
-
-	// poster_time
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["poster_time"] = tmp32
-
-	// selection time
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["selection_time"] = tmp32
-
-	// selection duration
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["selection_duration"] = tmp32
-
-	// current time
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["current_time"] = tmp32
-
-	// next track ID
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["next_track_ID"] = tmp32
+	el["preview_time"] = read32(r)
+	el["preview_duration"] = read32(r)
+	el["poster_time"] = read32(r)
+	el["selection_time"] = read32(r)
+	el["selection_duration"] = read32(r)
+	el["current_time"] = read32(r)
+	el["next_track_ID"] = read32(r)
 
 	a.elements = el
 
@@ -169,48 +173,34 @@ func parse_tkhd(a *Atom, r io.Reader) *Atom {
 
 	el := make(map[string]interface{})
 	var tmp32 uint32
-	var tmp16 uint16
-	// var tmp8 uint8
 
-	binary.Read(r, binary.BigEndian, &tmp32)
+	tmp32 = read32(r)
 	el["version"] = (tmp32 >> 24) & 0xff
 	el["flags"] = tmp32 & 0xffffff
 
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["creation_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
-
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["modification_time"] = time.Unix(int64(tmp32), 0).Add(diff_time)
+	el["creation_time"] = time.Unix(int64(read32(r)), 0).Add(diff_time)
+	el["modification_time"] = time.Unix(int64(read32(r)), 0).Add(diff_time)
 
 	// track ID
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["track_ID"] = tmp32
+	el["track_ID"] = read32(r)
 
-	// Reserved
-	binary.Read(r, binary.BigEndian, &tmp32)
+	// Reserved(32 bits)
+	read32(r)
 
 	// Duration
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["duration"] = tmp32
+	el["duration"] = read32(r)
 
 	// reserved
 	buf := make([]byte, 8)
 	r.Read(buf)
 
 	// Layer
-	binary.Read(r, binary.BigEndian, &tmp16)
-	el["layer"] = tmp16
-
-	// Alternate group
-	binary.Read(r, binary.BigEndian, &tmp16)
-	el["alternate_group"] = tmp16
-
-	// Volume
-	binary.Read(r, binary.BigEndian, &tmp16)
-	el["volume"] = tmp16
+	el["layer"] = read16(r)
+	el["alternate_group"] = read16(r)
+	el["volume"] = read16(r)
 
 	// Reserved
-	binary.Read(r, binary.BigEndian, &tmp16)
+	read16(r)
 
 	// matrix structure
 	var matrix [3][3]uint32
@@ -225,13 +215,8 @@ func parse_tkhd(a *Atom, r io.Reader) *Atom {
 	binary.Read(r, binary.BigEndian, &matrix[2][2])
 	el["matrix_structure"] = matrix
 
-	// Track width
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["track_width"] = tmp32
-
-	// Track height
-	binary.Read(r, binary.BigEndian, &tmp32)
-	el["track_height"] = tmp32
+	el["track_width"] = read32(r)
+	el["track_height"] = read32(r)
 
 	a.elements = el
 
@@ -248,18 +233,6 @@ func parse_general(a *Atom, r io.Reader) *Atom {
 	//
 
 	return a
-}
-
-func Print_atom(a *Atom) {
-
-	fmt.Printf("type: %s\n", a.atype)
-	fmt.Printf("size: %d\n", a.size)
-
-	for k, v := range a.elements {
-		fmt.Printf("%s: %v\n", k, v)
-	}
-
-	fmt.Printf("\n")
 }
 
 func Parse_atom(r io.Reader) []Atom {
