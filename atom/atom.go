@@ -29,10 +29,21 @@ func (self Atom) Print() {
 			fmt.Printf("0x%x\n", v)
 
 		case "track_width", "track_height":
-			fmt.Printf("%d.%04d\n", (v.(uint32) >> 16), (v.(uint32) & 0xffff))
+			fmt.Printf("%.4f\n", (float32(v.(uint32)) / 65536.0))
 
 		case "matrix_structure":
-			fmt.Println(v.([3][3]uint32))
+			matrix := v.([3][3]uint32)
+
+			fmt.Printf("\n")
+
+			for i := 0; i < 3; i++ {
+
+				fmt.Printf("\t| %3.4f  %3.4f  %3.4f |\n",
+					(float32(matrix[i][0]) / 65536.0),
+					(float32(matrix[i][1]) / 65536.0),
+					(float32(matrix[i][2]) / 1073741824.0))
+
+			}
 
 		default:
 			fmt.Printf("%v\n", v)
