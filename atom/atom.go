@@ -4,29 +4,37 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 )
 
 type Atom struct {
 	size     uint32
 	atype    string
+	level    int
+	parent   *Atom
 	children []Atom
 	elements map[string]interface{}
 }
 
 func (self Atom) Print() {
 
-	fmt.Printf("type: %s\n", self.atype)
-	fmt.Printf("size: %d\n", self.size)
+	indent := strings.Repeat(" ", self.level)
+
+	fmt.Printf("%stype: %s\n", indent, self.atype)
+	fmt.Printf("%ssize: %d\n", indent, self.size)
 
 	for k, v := range self.elements {
 
-		fmt.Printf("%s: ", k)
+		fmt.Printf("%s%s: ", indent, k)
 
 		switch k {
 
+		case "minor_version":
+			fmt.Printf("%#08x\n", v)
+
 		case "flags":
-			fmt.Printf("0x%x\n", v)
+			fmt.Printf("%x\n", v)
 
 		case "track_width", "track_height":
 			fmt.Printf("%.4f\n", (float32(v.(uint32)) / 65536.0))
@@ -88,9 +96,7 @@ func parse_ftyp(a *Atom, r io.Reader) *Atom {
 
 	r.Read(buf)
 	el["major_brand"] = string(buf)
-
-	r.Read(buf)
-	el["minor_version"] = string(buf)
+	el["minor_version"] = read32(r)
 
 	remain_size := a.size - 16
 	tmp := make([]string, remain_size/4+1)
@@ -102,14 +108,6 @@ func parse_ftyp(a *Atom, r io.Reader) *Atom {
 	el["compatible_brands"] = tmp
 
 	a.elements = el
-
-	return a
-}
-
-// moov
-func parse_moov(a *Atom, r io.Reader) *Atom {
-
-	a.children = Parse_atom(r)
 
 	return a
 }
@@ -171,14 +169,6 @@ func parse_free(a *Atom, r io.Reader) *Atom {
 	return a
 }
 
-// trak atom
-func parse_trak(a *Atom, r io.Reader) *Atom {
-
-	a.children = Parse_atom(r)
-
-	return a
-}
-
 // tkhd atom
 func parse_tkhd(a *Atom, r io.Reader) *Atom {
 
@@ -234,6 +224,43 @@ func parse_tkhd(a *Atom, r io.Reader) *Atom {
 	return a
 }
 
+// elst atom
+func parse_elst(a *Atom, r io.Reader) *Atom {
+
+	el := make(map[string]interface{})
+	var tmp32 uint32
+
+	tmp32 = read32(r)
+	el["version"] = (tmp32 >> 24) & 0xff
+	el["flags"] = tmp32 & 0xffffff
+
+	el["number_of_entries"] = read32(r)
+
+	entries := make([][3]uint32, el["number_of_entries"].(uint32))
+	for i := uint32(0); i < el["number_of_entries"].(uint32); i++ {
+
+		entries[i][0] = read32(r)
+		entries[i][1] = read32(r)
+		entries[i][2] = read32(r)
+
+	}
+
+	el["edit_list_table"] = entries
+	fmt.Println(entries)
+
+	a.elements = el
+
+	return a
+}
+
+// general atoms with children
+func parse_general_with_children(a *Atom, r io.Reader) *Atom {
+
+	a.children = Parse_atom(r, a.level+1)
+
+	return a
+}
+
 // general
 func parse_general(a *Atom, r io.Reader) *Atom {
 
@@ -246,7 +273,8 @@ func parse_general(a *Atom, r io.Reader) *Atom {
 	return a
 }
 
-func Parse_atom(r io.Reader) []Atom {
+// parse each atoms
+func Parse_atom(r io.Reader, level int) []Atom {
 
 	var atoms = make([]Atom, 0)
 	var size uint32
@@ -257,6 +285,11 @@ func Parse_atom(r io.Reader) []Atom {
 
 		atom := new(Atom)
 		atom.size = size
+		atom.level = level
+
+		if level == 0 {
+			atom.parent = nil
+		}
 
 		r.Read(buf)
 		atom.atype = string(buf)
@@ -273,15 +306,19 @@ func Parse_atom(r io.Reader) []Atom {
 	return atoms
 }
 
+// initialize
 func init() {
 
+	// initialize parser table
 	atom_parsers = map[string]func(*Atom, io.Reader) *Atom{
+		"moov": parse_general_with_children,
+		"trak": parse_general_with_children,
+		"edts": parse_general_with_children,
 		"ftyp": parse_ftyp,
-		"moov": parse_moov,
 		"mvhd": parse_mvhd,
-		"trak": parse_trak,
 		"free": parse_free,
 		"tkhd": parse_tkhd,
+		"elst": parse_elst,
 	}
 
 	diff_time = time.Date(1904, 1, 1, 0, 0, 0, 0, time.UTC).Sub(time.Unix(0, 0))

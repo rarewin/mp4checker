@@ -41,7 +41,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	atoms := atom.Parse_atom(file_i)
+	atoms := atom.Parse_atom(file_i, 0)
 
 	for i := 0; i < len(atoms); i++ {
 		atoms[i].Print()
